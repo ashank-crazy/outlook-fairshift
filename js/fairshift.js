@@ -136,6 +136,18 @@
     return 'evening';
   }
 
+  /**
+   * Personal preference: an early bird minds a 7 AM call less than a 9 PM one,
+   * a night owl the reverse. Sleep and weekends are never discounted.
+   */
+  function chronoFactor(cat, minute, person) {
+    if (!person.chrono || cat === 'work' || cat === 'sleep' || cat === 'weekend') return 1;
+    const morning = minute < 12 * 60;
+    if (person.chrono === 'early') return morning ? 0.5 : 1.5;
+    if (person.chrono === 'late') return morning ? 1.5 : 0.5;
+    return 1;
+  }
+
   function busyAt(minute, weekday, person) {
     if (weekday === 0 || weekday === 6 || !person.busy) return null;
     for (const b of person.busy) {
@@ -155,7 +167,7 @@
       const len = Math.min(SLICE, durMin - t) / 60;
       const wc = wallClock(startMs + t * 60000, person.tz);
       const cat = categorize(wc.minute, wc.weekday, person);
-      pain += CATEGORIES[cat].weight * len;
+      pain += CATEGORIES[cat].weight * chronoFactor(cat, wc.minute, person) * len;
       if (cat !== 'work') offHours += len;
       if (CATEGORIES[cat].rank > CATEGORIES[worst].rank) worst = cat;
       const busy = busyAt(wc.minute, wc.weekday, person);

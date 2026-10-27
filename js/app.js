@@ -28,6 +28,7 @@
     protectSleep: true,
     useLedger: false,
     preview: 0,
+    chrono: {},
   };
 
   const $ = (sel, el) => (el || document).querySelector(sel);
@@ -52,6 +53,7 @@
     state.slot = s.slot;
     state.dur = s.dur;
     state.preview = 0;
+    state.chrono = {};
   }
 
   // ---------------------------------------------------------------------------
@@ -61,10 +63,12 @@
   let cacheKey = '';
   let cachePlan = null;
 
-  function attendees() { return state.people.map((id) => PEOPLE[id]); }
+  function attendees() {
+    return state.people.map((id) => (state.chrono[id] ? Object.assign({}, PEOPLE[id], { chrono: state.chrono[id] }) : PEOPLE[id]));
+  }
 
   function currentPlan() {
-    const key = JSON.stringify([state.people, state.slot, state.dur, state.occurrences, state.maxSlots, state.protectSleep, state.useLedger]);
+    const key = JSON.stringify([state.people, state.slot, state.dur, state.occurrences, state.maxSlots, state.protectSleep, state.useLedger, state.chrono]);
     if (key !== cacheKey) {
       cachePlan = F.plan({
         people: attendees(), organizerTz: ORG_TZ, start: START, occurrences: state.occurrences,
@@ -89,6 +93,7 @@
   // ---------------------------------------------------------------------------
 
   function render() {
+    snapshotAnimations();
     const plan = currentPlan();
     state.preview = Math.min(state.preview, plan.dates.length - 1);
     document.body.classList.toggle('mode-classic', !fairshiftOn());
@@ -98,9 +103,50 @@
       b.classList.toggle('active', on);
       b.setAttribute('aria-checked', String(on));
     });
+    const seriesScroll = $('#series') ? $('#series').scrollTop : 0;
     renderDetails(plan);
     renderAssistant(plan);
     renderInsights(plan);
+    if ($('#series')) $('#series').scrollTop = seriesScroll;
+    playAnimations();
+  }
+
+  // Scores and bars glide from their previous value instead of jumping.
+  const animMemory = new Map();
+  const RING_CIRC = 2 * Math.PI * 30;
+  const STILL = new URLSearchParams(location.search).has('still') ||
+    (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  function snapshotAnimations() {
+    document.querySelectorAll('[data-anim]').forEach((el) => animMemory.set(el.dataset.anim, +el.dataset.val));
+  }
+
+  function playAnimations() {
+    if (STILL) return;
+    document.querySelectorAll('[data-anim]').forEach((el) => {
+      const to = +el.dataset.val;
+      const from = animMemory.has(el.dataset.anim) ? animMemory.get(el.dataset.anim) : 0;
+      if (from === to) return;
+      if (el.classList.contains('score')) {
+        const fg = el.querySelector('.ring-fg');
+        const txt = el.querySelector('text');
+        fg.style.strokeDasharray = (from / 100) * RING_CIRC + ' ' + RING_CIRC;
+        fg.getBoundingClientRect();
+        fg.style.strokeDasharray = (to / 100) * RING_CIRC + ' ' + RING_CIRC;
+        const t0 = performance.now();
+        (function tick(now) {
+          const k = Math.min(1, (now - t0) / 650);
+          const eased = 1 - Math.pow(1 - k, 3);
+          txt.textContent = Math.round(from + (to - from) * eased);
+          if (k < 1 && txt.isConnected) requestAnimationFrame(tick);
+        })(t0);
+        setTimeout(() => { txt.textContent = to; }, 800); // rAF pauses in background tabs
+      } else {
+        el.style.width = from + '%';
+        el.getBoundingClientRect();
+        el.style.width = to + '%';
+      }
+    });
   }
 
   function avatar(p, cls) {
@@ -126,17 +172,21 @@
       const local = fairshiftOn()
         ? '<span class="chip-local cat-text-' + s.worst + '">' + F.formatMinute(s.localMinute) + ' ' + s.abbr + '</span>'
         : '<span class="chip-local">' + esc(p.city) + '</span>';
+      const chrono = fairshiftOn()
+        ? '<button class="chrono' + (p.chrono ? ' on' : '') + '" data-chrono="' + p.id + '" title="Meeting-time preference">' +
+          (p.chrono === 'early' ? '🌅 Early bird' : p.chrono === 'late' ? '🌙 Night owl' : '+ Preference') + '</button>'
+        : '';
       const remove = a === 0 ? '<span class="chip-tag">Organizer</span>'
         : '<button class="chip-x" data-remove="' + p.id + '" aria-label="Remove ' + esc(p.name) + '">✕</button>';
       return '<div class="chip">' + avatar(p, 'small') + '<span class="chip-main"><span class="chip-name">' + esc(p.name) +
-        '</span>' + local + '</span>' + remove + '</div>';
+        '</span><span class="chip-sub">' + local + chrono + '</span></span>' + remove + '</div>';
     }).join('');
     const addable = DIRECTORY.filter((p) => !state.people.includes(p.id));
     const lastDate = plan.dates[plan.dates.length - 1];
 
     $('#details').innerHTML =
       '<div class="field"><label for="title">Title</label><input id="title" class="input title-input" value="' + esc(state.title) + '"></div>' +
-      '<div class="field"><label>Required attendees</label><div class="chips">' + chips + '</div>' +
+      '<div class="field"><label>Required attendees</label><div class="chips" id="chips">' + chips + '</div>' +
         (addable.length ? '<select id="addPerson" class="input"><option value="">+ Add people…</option>' +
           addable.map((p) => '<option value="' + p.id + '">' + esc(p.name) + ' — ' + esc(p.city) + '</option>').join('') + '</select>' : '') +
       '</div>' +
@@ -205,7 +255,7 @@
         : '';
       const bandColor = rotating() ? SLOT_COLORS[slotIndex(plan, occ.slot)] : '#0f6cbd';
       return '<div class="g-row">' +
-        '<div class="g-name">' + avatar(p, 'small') + '<span><b>' + esc(p.name) + '</b><small>' +
+        '<div class="g-name">' + avatar(p, 'small') + '<span><b>' + esc(p.name) + (fs && p.chrono ? (p.chrono === 'early' ? ' 🌅' : ' 🌙') : '') + '</b><small>' +
           (fs ? esc(p.city) + ' · ' + s.abbr : (a === 0 ? 'Organizer' : 'Required')) + '</small></span></div>' +
         '<div class="g-track" data-track>' + cells + ghosts +
           '<div class="band" style="' + bandStyle(occ.slot, state.dur) + ';--bc:' + bandColor + '"></div></div>' +
@@ -302,7 +352,7 @@
     const r = 30;
     const circ = 2 * Math.PI * r;
     const dash = (score / 100) * circ;
-    return '<div class="score ' + tone + '"><svg viewBox="0 0 76 76" width="76" height="76" aria-hidden="true">' +
+    return '<div class="score ' + tone + '" data-anim="ring:' + label + '" data-val="' + score + '"><svg viewBox="0 0 76 76" width="76" height="76" aria-hidden="true">' +
       '<circle cx="38" cy="38" r="' + r + '" class="ring-bg"/>' +
       '<circle cx="38" cy="38" r="' + r + '" class="ring-fg" stroke-dasharray="' + dash + ' ' + circ + '" transform="rotate(-90 38 38)"/>' +
       '<text x="38" y="44" text-anchor="middle">' + score + '</text></svg>' +
@@ -337,10 +387,13 @@
       const drop = fixed.series[h] > 0 ? Math.round((1 - r.series[h] / fixed.series[h]) * 100) : 0;
       const lateBefore = fixed.lateCount.reduce((a, b) => a + b, 0);
       const lateAfter = r.lateCount.reduce((a, b) => a + b, 0);
-      html += '<p class="headline good-text">Fairshift rotates between ' + r.slots.map((x) => '<b>' + F.formatMinute(x.slot) + '</b>').join(' and ') +
-        ' PT. ' + esc(firstName(hp)) + '\'s load drops <b>' + drop + '%</b>' +
+      html += '<p class="headline good-text">' + (r.slots.length > 1 ? 'Fairshift rotates between ' : 'Fairshift moves the series to ') +
+        r.slots.map((x) => '<b>' + F.formatMinute(x.slot) + '</b>').join(' and ') + ' PT. ' + esc(firstName(hp)) + '\'s load drops <b>' + drop + '%</b>' +
         (lateBefore !== lateAfter ? ', night or pre-dawn joins go from <b>' + lateBefore + ' → ' + lateAfter + '</b>' : '') +
-        ', and the heaviest load is ' + (r.fairness >= 99 ? 'as low as these time zones allow' : 'within ' + (100 - r.fairness) + '% of the fairest possible schedule') + '.</p>';
+        ', and the heaviest load is ' + (r.fairness >= 99 ? 'as low as these time zones allow' : 'within ' + (100 - r.fairness) + '% of the fairest possible schedule') + '.' +
+        (fixed.lateCount[h] > r.lateCount[h]
+          ? ' That is about <b>' + Math.round(((fixed.lateCount[h] - r.lateCount[h]) * 52) / n) + ' late nights a year</b> ' + esc(firstName(hp)) + ' gets back.'
+          : '') + '</p>';
     }
     return html;
   }
@@ -370,16 +423,22 @@
     const scores = '<div class="score-row" id="scoreRow">' +
       ring(fixed.fairness, 'Fixed time', F.formatMinute(state.slot) + ' PT every week', tone(fixed.fairness)) +
       (showRot
-        ? '<span class="score-arrow">→</span>' + ring(rot.fairness, 'Fair rotation', rot.slots.length + ' rotating times', tone(rot.fairness))
-        : '<button class="cta" id="ctaRotate"><span class="spark">✦</span><b>Rotate fairly</b><small>Fairness ' + rot.fairness + ' with ' + rot.slots.length + ' rotating times</small></button>') +
-      '</div>';
+        ? '<span class="score-arrow">→</span>' + ring(rot.fairness, 'Fair rotation', rot.slots.length > 1 ? rot.slots.length + ' rotating times' : 'one fairer time', tone(rot.fairness))
+        : '<button class="cta" id="ctaRotate"><span class="spark">✦</span><b>Rotate fairly</b><small>Fairness ' + rot.fairness + (rot.slots.length > 1 ? ' with ' + rot.slots.length + ' rotating times' : ' at one fairer time') + '</small></button>') +
+      '</div>' +
+      (!showRot && plan.single.slot !== state.slot && plan.single.fairness > fixed.fairness
+        ? '<div class="alt">Prefer one fixed time? <b>' + F.formatMinute(plan.single.slot) + ' PT</b> scores <b>' + plan.single.fairness +
+          '</b>. <button class="link" data-use-slot="' + plan.single.slot + '">Use it</button></div>'
+        : '');
 
     const loads = people.map((p, a) => {
       const ledger = plan.base[a];
       const bar = (series, cls) => {
         const total = series.totals[a];
-        return '<div class="bar ' + cls + '"><i class="bar-ledger" style="width:' + (ledger / maxVal) * 100 + '%"></i>' +
-          '<i class="bar-fill" style="width:' + ((total - ledger) / maxVal) * 100 + '%"></i>' +
+        const lw = (ledger / maxVal) * 100;
+        const fw = ((total - ledger) / maxVal) * 100;
+        return '<div class="bar ' + cls + '"><i class="bar-ledger" data-anim="bl:' + cls + ':' + p.id + '" data-val="' + lw + '" style="width:' + lw + '%"></i>' +
+          '<i class="bar-fill" data-anim="bf:' + cls + ':' + p.id + '" data-val="' + fw + '" style="width:' + fw + '%"></i>' +
           '<span>' + fmtPts(total) + '</span></div>';
       };
       const late = showRot ? rot.lateCount[a] : fixed.lateCount[a];
@@ -479,6 +538,8 @@
       { target: '#loads', text: () => { const p = currentPlan(); return firstName(hp) + '\'s load drops ' + Math.round((1 - p.rotation.series[h] / p.fixed.series[h]) * 100) + '%. The organizer shares the early slot. Fairness ' + p.fixed.fairness + ' → ' + p.rotation.fairness + '.'; } },
       { setup: () => { state.useLedger = true; }, target: '#fsCard',
         text: 'Fairness ledger: Fairshift remembers who already takes late calls in other meetings, and leans the rotation to spare them.' },
+      { setup: () => { state.useLedger = false; state.chrono = { maya: 'early' }; }, target: '#chips',
+        text: 'Preferences count too. Maya is an early bird, so Fairshift leans on her mornings and spares Priya\'s evenings even more.' },
       { target: '#series', text: 'DST-aware: clocks change on different dates in the US, UK and India. Every occurrence is re-scored with real time-zone rules.' },
       { target: '#sendBtn', text: 'Send — the invite explains the rotation, so nobody is surprised when the time moves.', after: openInvite },
     ];
@@ -552,6 +613,16 @@
     const week = t.closest('[data-week]');
     if (week) { state.preview = Math.max(0, state.preview + +week.dataset.week); render(); return; }
     if (t.closest('#ctaRotate')) { state.rotate = true; render(); return; }
+    const chrono = t.closest('[data-chrono]');
+    if (chrono) {
+      const id = chrono.dataset.chrono;
+      const next = { undefined: 'early', early: 'late', late: undefined }[String(state.chrono[id])];
+      if (next) state.chrono[id] = next; else delete state.chrono[id];
+      render();
+      return;
+    }
+    const useSlot = t.closest('[data-use-slot]');
+    if (useSlot) { state.slot = +useSlot.dataset.useSlot; render(); return; }
     const track = t.closest('[data-track]');
     if (track && !track.classList.contains('hours')) {
       const rect = track.getBoundingClientRect();

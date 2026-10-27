@@ -1,0 +1,13 @@
+[
+  { "id": "s01", "text": "Every week, somewhere in the world, someone joins a meeting at ten thirty at night. Nobody chose that for them. The calendar just never noticed." },
+  { "id": "s02", "text": "This is the Scheduling Assistant in Outlook today. Maya, in San Francisco, is setting up a weekly product sync at nine in the morning. Everyone looks free. It seems perfect." },
+  { "id": "s03", "text": "Fairshift adds a new lens. Every row is painted in that person's own local time. And now, you can see it. Nine in the morning for Maya is ten thirty at night for Priya, in Bengaluru, running into her sleep hours. Every single week." },
+  { "id": "s04", "text": "Across twenty-six meetings, Priya carries eighty-seven percent of the team's after-hours load. Fairshift scores this schedule thirty-seven, out of a hundred." },
+  { "id": "s05", "text": "So, one switch. Rotate time fairly. Fairshift looks at every half hour of the day, and every rotation of up to three times. It protects whoever is carrying the most, first, and it never asks anyone to join during their sleep." },
+  { "id": "s06", "text": "The series now gently alternates between six thirty and seven thirty in the morning, Pacific time. Maya shares the early starts. Priya's load drops by sixty-one percent, and fairness rises to ninety-seven. That's more than forty late nights a year, given back." },
+  { "id": "s07", "text": "It understands daylight saving, too. America and Britain change their clocks on different weekends in March, so every meeting is scored on its own." },
+  { "id": "s08", "text": "And people are different. Maya is an early bird, so Fairshift leans on her mornings, and spares Priya's evenings even more." },
+  { "id": "s09", "text": "For a team that spans the whole planet, it rotates around the world. With the fairness ledger, it also remembers who already takes late calls in other meetings, and gives them a break. Fairness goes from thirty-four, to ninety-six." },
+  { "id": "s10", "text": "When you send the invite, it explains the rotation, with everyone's local time, so no one is ever surprised." },
+  { "id": "s11", "text": "Working hours, time zones, and recurring meetings with exceptions already live in Outlook. So Fairshift could ship as a single, opt-in switch. Fairshift. Because it shouldn't always be the same person, taking the late call." }
+]

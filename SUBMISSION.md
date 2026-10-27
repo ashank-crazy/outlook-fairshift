@@ -30,9 +30,11 @@ Fairshift adds a fairness layer to Outlook's Scheduling Assistant:
 - **Rotate time fairly:** one switch plans the series, rotating between up to 3 times so the after-hours load is shared.
 - **Protect sleep:** nobody is ever scheduled between 11 PM and 6 AM.
 - **Fairness ledger:** optionally counts late calls people already take in other meetings, so the rotation spares them.
+- **Early bird / night owl:** attendees can say which side of the day they would rather give up, and the planner respects it.
+- **Best single time:** if you don't want a rotating series, Fairshift still suggests the fairest fixed time.
 - **DST-aware series:** the US, UK and India change clocks on different dates, so every occurrence is re-scored.
 - **Self-explaining invite:** the invitation tells attendees the time rotates and shows each person's local time.
-- **Before/after toggle** and an 8-step **guided demo** built into the prototype.
+- **Before/after toggle** and a 9-step **guided demo** built into the prototype.
 
 ### How I built it
 A dependency-free JavaScript engine (`js/fairshift.js`) uses the browser's `Intl` time-zone database to convert each candidate time into every attendee's wall-clock time, per occurrence, in 15-minute slices. The planner:
@@ -66,14 +68,15 @@ Rollout:
 3. Connect the fairness ledger to Viva Insights' after-hours collaboration data, visible only to the organizer and the attendee.
 
 ## Built with (tags)
-javascript, html5, css3, intl-api, node.js, github-pages, claude, claude-code
+javascript, html5, css3, intl-api, node.js, github-pages, claude, claude-code, kokoro-tts, ffmpeg
 
 ## How it works (tools, APIs, languages, AI models)
 - Languages: JavaScript, HTML, CSS
 - APIs: ECMAScript `Intl.DateTimeFormat` time-zone database (DST-aware local times)
-- Testing: Node.js built-in test runner (`npm test`, 7 tests)
+- Testing: Node.js built-in test runner (`npm test`, 8 tests)
+- Demo video: scripted with the Chrome DevTools Protocol and ffmpeg
 - Hosting: GitHub Pages
-- AI: Claude Code (Anthropic Claude Opus 5.5) used as an AI pair-programmer
+- AI: Claude Code (Anthropic Claude Opus 5.5) used as an AI pair-programmer; Kokoro-82M open-source neural TTS for the video voiceover
 - Production path (documented): Microsoft Graph `mailboxSettings.workingHours`, `getSchedule`, recurring events with modified occurrences
 
 ## Links
@@ -83,7 +86,11 @@ javascript, html5, css3, intl-api, node.js, github-pages, claude, claude-code
 
 ---
 
-# Demo video script (about 2:30, under the 3:00 limit)
+# Demo video
+
+The finished video is `video/out/fairshift-demo.mp4` (2:30, 1080p, narrated). Upload it to YouTube as **Unlisted** and paste the link into Devpost. The narration text is in `video/narration.json`. To regenerate it, run `video/tts.py`, then `node video/record.js http://localhost:8080/ <voice-dir> <out-dir>`.
+
+## Manual recording script (backup, if you prefer to record yourself)
 
 **Setup:** open the live demo full-screen in Chrome (Cmd+Ctrl+F) at about 1470 px wide. Record with QuickTime (File → New Screen Recording) or Loom, with your mic on. Click **▶ Guided demo** and use the tour's **Next** button while you narrate. Or drive it by hand with the shots below.
 

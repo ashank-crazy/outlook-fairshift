@@ -65,3 +65,11 @@ test('detects the March clock changes in the US and UK as separate events', () =
   const dates = r.clockChanges.map((c) => r.dates[c.index]);
   assert.deepEqual(dates.map((d) => d.m + '/' + d.d), ['3/16', '3/30']);
 });
+
+test('an early bird minds a 6:30 AM start less, a night owl minds it more', () => {
+  const start = F.zonedTime(2026, 11, 3, 6 * 60 + 30, 'America/Los_Angeles');
+  const plain = F.scoreAttendance(start, 60, maya).pain;
+  const early = F.scoreAttendance(start, 60, Object.assign({}, maya, { chrono: 'early' })).pain;
+  const owl = F.scoreAttendance(start, 60, Object.assign({}, maya, { chrono: 'late' })).pain;
+  assert.ok(early < plain && plain < owl, [early, plain, owl].join(' < '));
+});
